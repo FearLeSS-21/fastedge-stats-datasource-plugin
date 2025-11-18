@@ -1,0 +1,1 @@
+# fastedge-stats-datasource-plugin
