@@ -1,0 +1,53 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "Gcore FastEdge",
+  "id": "gcorelabs-fastedge-stats-datasource",
+  "metrics": true,
+  "info": {
+    "description": "Datasource for G-Core FastEdge",
+    
+    "author": {
+      "name": "G-Core",
+      "url": "https://gcore.com/",
+      "email": "support@gcore.com"
+    },
+    "keywords": ["fastedge", "execution", "duration", "statistics"],
+    "logos": {
+      "small": "img/logo-small.svg",
+      "large": "img/logo-large-black.png"
+    },
+    "links": [
+      {
+        "name": "Website",
+        "url": "https://github.com/FearLeSS-21/fastedge-app-duration-datasource-plugin"
+      },
+      {
+        "name": "License",
+        "url": "https://github.com/FearLeSS-21/fastedge-app-duration-datasource-plugin/blob/master/LICENSE"
+      }
+    ],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=12.0.0",
+    "plugins": []
+  },
+  "routes": [
+    {
+      "path": "fastedge/v1/apps",
+      "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/fastedge/v1/apps",
+      "headers": [
+        { "name": "Authorization", "content": " {{ .SecureJsonData.apiKey }}" }
+      ]
+    },
+    {
+      "path": "fastedge/v1/stats/app_duration",
+      "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/fastedge/v1/stats/app_duration",
+      "headers": [
+        { "name": "Authorization", "content": " {{ .SecureJsonData.apiKey }}" }
+      ]
+    }
+  ]
+}
