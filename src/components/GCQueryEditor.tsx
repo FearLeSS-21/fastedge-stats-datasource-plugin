@@ -15,12 +15,14 @@ type Props = QueryEditorProps<DataSource, GCQuery, GCDataSourceOptions>;
 interface State {
   appOptions: Array<SelectableValue<number>>;
   loadingApps: boolean;
+  error?: string;
 }
 
 export class GCQueryEditor extends PureComponent<Props, State> {
   state: State = {
     appOptions: [],
     loadingApps: false,
+    error: undefined,
   };
 
   componentDidMount() {
@@ -28,39 +30,56 @@ export class GCQueryEditor extends PureComponent<Props, State> {
   }
 
   async loadApps() {
-    this.setState({ loadingApps: true });
+    this.setState({ loadingApps: true, error: undefined });
+
     try {
       const url = `${this.props.datasource.url}/fastedge/v1/apps`;
-      const apiKey = this.props.datasource.instanceSettings.secureJsonData?.apiKey ?? "";
+      let apiKey = this.props.datasource.instanceSettings.secureJsonData?.apiKey ?? "";
+      apiKey = apiKey.startsWith("apikey ") ? apiKey : `apikey ${apiKey}`;
+      const { getBackendSrv } = await import("@grafana/runtime");
 
-      const response = await (await import("@grafana/runtime")).getBackendSrv().datasourceRequest({
+      const response = await getBackendSrv().datasourceRequest({
         method: "GET",
         url,
-        headers: { Authorization: `apikey ${apiKey}` },
+        headers: { Authorization: apiKey },
       });
 
-      const rawData = response?.data;
+      const raw: any = response?.data ?? {};
+      let apps: any[] = [];
 
-      const apps: any[] = Array.isArray(rawData)
-        ? rawData
-        : Array.isArray((rawData as any)?.apps)
-        ? (rawData as any).apps
-        : [];
+      if (Array.isArray(raw)) {
+        apps = raw;
+      } else if (Array.isArray(raw.apps)) {
+        apps = raw.apps;
+      }
 
-      const appOptions = apps.map((app: any) => ({
-        label: app.name ?? `App ${app.id}`,
-        value: app.id,
-      }));
+      // Add "All" option at the top
+      const appOptions = [
+        { label: "All", value: 0 }, // value 0 represents "All apps"
+        ...apps.map((app: any) => ({
+          label: app.name ?? `App ${app.id}`,
+          value: app.id,
+        })),
+      ];
 
       this.setState({ appOptions, loadingApps: false });
-    } catch (error) {
-      this.setState({ appOptions: [], loadingApps: false });
+    } catch {
+      this.setState({
+        loadingApps: false,
+        appOptions: [],
+        error: "Failed to load apps (FastEdge API unreachable or invalid API key)",
+      });
     }
   }
 
   onAppChange = (option: SelectableValue<number>) => {
     const { onChange, query, onRunQuery } = this.props;
-    const selectedName = this.state.appOptions.find((opt) => opt.value === option.value)?.label;
+
+    const selectedName =
+      option.value === 0
+        ? "All"
+        : this.state.appOptions.find((opt) => opt.value === option.value)?.label;
+
     onChange({ ...query, id: option.value, appName: selectedName });
     onRunQuery();
   };
@@ -80,7 +99,7 @@ export class GCQueryEditor extends PureComponent<Props, State> {
   render() {
     const query: GCQuery = defaults(this.props.query, defaultQuery);
     const { id = 0, step = 60, network = "" } = query;
-    const { appOptions, loadingApps } = this.state;
+    const { appOptions, loadingApps, error } = this.state;
 
     const inputStyle: React.CSSProperties = {
       width: "100%",
@@ -91,7 +110,7 @@ export class GCQueryEditor extends PureComponent<Props, State> {
       boxSizing: "border-box",
     };
 
-    const selectedApp = appOptions.find((opt) => opt.value === id);
+    const selectedApp = appOptions.find((opt) => opt.value === id) || appOptions[0];
 
     return (
       <div
@@ -121,7 +140,7 @@ export class GCQueryEditor extends PureComponent<Props, State> {
             )
           }
         />
-
+        {error && <div style={{ color: "red", fontSize: "12px", marginTop: "-10px" }}>{error}</div>}
         <FormField
           label="Step"
           labelWidth={12}
@@ -135,7 +154,6 @@ export class GCQueryEditor extends PureComponent<Props, State> {
             />
           }
         />
-
         <FormField
           label="Network"
           labelWidth={12}

@@ -37,37 +37,31 @@ export class DataSource extends DataSourceApi<GCQuery, GCDataSourceOptions> {
   }
 
   private transform(data: GCAppDuration[], query: GCQuery): DataFrame {
-    if (!data || data.length === 0) {
+    if (!data || !Array.isArray(data) || data.length === 0) {
       return getEmptyDataFrame();
     }
 
-    const validData = data.filter((d) => d.time != null);
-    if (validData.length === 0) {
+    const valid = data.filter((d) => d.time != null);
+    if (valid.length === 0) {
       return getEmptyDataFrame();
     }
 
-    const timePoints = validData.map((d) => new Date(d.time).getTime());
     const fields: Field[] = [];
 
     fields.push({
       name: "Time",
       type: FieldType.time,
-      values: timePoints,
+      values: valid.map((d) => new Date(d.time).getTime()),
       config: {},
     });
 
     const stats = ["avg", "min", "max", "median", "perc75", "perc90"];
-    for (const stat of stats) {
-      const values = validData.map((d) => d[stat as keyof GCAppDuration] ?? null);
+    for (const s of stats) {
       fields.push({
-        name: stat,
+        name: s,
         type: FieldType.number,
-        values,
-        config: {
-          custom: {
-            drawStyle: "lines+points", // ensures both lines and points appear
-          },
-        },
+        values: valid.map((d) => d[s as keyof GCAppDuration] ?? null),
+        config: { custom: { drawStyle: "lines+points" } },
       });
     }
 
@@ -78,53 +72,51 @@ export class DataSource extends DataSourceApi<GCQuery, GCDataSourceOptions> {
     return date.toISOString();
   }
 
-  private async doRequest(
-    query: GCQuery,
-    options: DataQueryRequest<GCQuery>
-  ): Promise<{ data: GCResponseStats }> {
+  private getAuthHeader(): string {
+    const apiKey = this.instanceSettings.secureJsonData?.apiKey ?? "";
+    return apiKey.startsWith("apikey ") ? apiKey : `apikey ${apiKey}`;
+  }
+
+  private async doRequest(query: GCQuery, options: DataQueryRequest<GCQuery>): Promise<{ data: GCResponseStats }> {
     const { range } = options;
-    const id = query.id;
+
     const from = this.toRFC3339WithMs(new Date(query.from ?? range.from));
     const to = this.toRFC3339WithMs(new Date(query.to ?? range.to));
+    const params: any = { from, to, step: query.step ?? 60 };
 
-    const params: Record<string, any> = { from, to, step: query.step ?? 60 };
+    if (query.id) params.id = query.id;
+    if (query.network && query.network.trim() !== "") params.network = query.network;
 
-    if (id !== undefined) {
-      params.id = id;
+    const authHeader = this.getAuthHeader();
+
+    try {
+      return await getBackendSrv().datasourceRequest({
+        method: "GET",
+        url: `${this.url}/fastedge/v1/stats/app_duration`,
+        params,
+        responseType: "json",
+        headers: { Authorization: authHeader },
+      });
+    } catch (err: any) {
+      const message =
+        err?.data?.message ||
+        err?.statusText ||
+        "Failed to authenticate. Check URL, API key, or network.";
+      throw new Error(message);
     }
-
-    if (query.network && query.network.trim() !== "") {
-      params.network = query.network;
-    }
-
-    const apiKey = this.instanceSettings.secureJsonData?.apiKey ?? "";
-
-    return getBackendSrv().datasourceRequest({
-      method: "GET",
-      url: `${this.url}/fastedge/v1/stats/app_duration`,
-      responseType: "json",
-      params,
-      headers: {
-        Authorization: `apikey ${apiKey}`,
-      },
-    });
   }
 
   async query(options: DataQueryRequest<GCQuery>): Promise<DataQueryResponse> {
     const targets = this.prepareTargets(options.targets.filter((t) => !t.hide));
 
-    const frames: DataFrame[] = await Promise.all(
-      targets.map(async (query) => {
+    const frames = await Promise.all(
+      targets.map(async (q) => {
         try {
-          const resp = await this.doRequest(query, options);
-          const data: GCAppDuration[] = resp?.data?.stats ?? [];
-          if (!data || data.length === 0) {
-            return getEmptyDataFrame();
-          }
-          return this.transform(data, query);
-        } catch (e) {
-          console.error("Query error:", e);
-          return getEmptyDataFrame();
+          const resp = await this.doRequest(q, options);
+          const stats = resp?.data?.stats ?? [];
+          return stats.length === 0 ? getEmptyDataFrame() : this.transform(stats, q);
+        } catch (e: any) {
+          return getEmptyDataFrame(); 
         }
       })
     );
@@ -136,27 +128,35 @@ export class DataSource extends DataSourceApi<GCQuery, GCDataSourceOptions> {
     };
   }
 
-  async testDatasource(): Promise<{ status: string; message: string }> {
-    try {
-      const now = new Date();
-      const from = this.toRFC3339WithMs(new Date(now.getTime() - 12 * 3600 * 1000));
-      const to = this.toRFC3339WithMs(now);
-      const apiKey = this.instanceSettings.secureJsonData?.apiKey ?? "";
-
-      const resp = await getBackendSrv().datasourceRequest({
+  async testDatasource() {
+    const auth = async (path: string) =>
+      getBackendSrv().datasourceRequest({
         method: "GET",
-        url: `${this.url}/fastedge/v1/stats/app_duration`,
+        url: `/api/datasources/proxy/uid/${this.instanceSettings.uid}/${path}`,
         responseType: "json",
-        params: { from, to, step: 60 },
-        headers: { Authorization: `apikey ${apiKey}` },
+        showErrorAlert: true,
       });
 
-      return resp?.status === 200
-        ? { status: "success", message: "Successfully connected to FastEdge API." }
-        : { status: "error", message: `Connection failed: ${resp.status} ${resp.statusText}` };
-    } catch (e: any) {
-      const message = e?.data?.message || e?.statusText || "Connection failed.";
-      return { status: "error", message };
+    try {
+      const r1 = await auth("iam/users/me");
+      return {
+        status: "success",
+        message: `Auth OK (IAM): ${(r1.data as { name?: string })?.name ?? "OK"}`,
+      };
+    } catch {
+      try {
+        const r2 = await auth("users/me");
+        return {
+          status: "success",
+          message: `Auth OK: ${(r2.data as { name?: string })?.name ?? "OK"}`,
+        };
+      } catch (err: any) {
+        const msg =
+          err?.data?.message ||
+          err?.statusText ||
+          "Failed to authenticate. Check URL, API key, or network.";
+        return { status: "error", message: msg };
+      }
     }
   }
 }

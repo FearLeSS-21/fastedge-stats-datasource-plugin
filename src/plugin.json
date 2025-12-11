@@ -1,13 +1,13 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/master/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
-  "name": "Gcore FastEdgeZ",
-  "id": "gcorelabs-fastedge-stats-datasourceZ",
+  "name": "Gcore FastEdge",
+  "id": "gcorelabs-fastedge-stats-datasource",
   "metrics": true,
   "info": {
-    "description": "Datasource for G-Core FastEdge",
+    "description": "Datasource for GCore FastEdge",
     "author": {
-      "name": "G-Core",
+      "name": "GCore",
       "url": "https://gcore.com/",
       "email": "support@gcore.com"
     },
@@ -44,6 +44,20 @@
     {
       "path": "fastedge/v1/stats/app_duration",
       "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/fastedge/v1/stats/app_duration",
+      "headers": [
+        { "name": "Authorization", "content": "{{ .SecureJsonData.apiKey }}" }
+      ]
+    },
+    {
+      "path": "users/me",
+      "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/users/me",
+      "headers": [
+        { "name": "Authorization", "content": "{{ .SecureJsonData.apiKey }}" }
+      ]
+    },
+    {
+      "path": "iam/users/me",
+      "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/iam/users/me",
       "headers": [
         { "name": "Authorization", "content": "{{ .SecureJsonData.apiKey }}" }
       ]

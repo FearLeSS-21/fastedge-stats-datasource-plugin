@@ -17,7 +17,7 @@ export class GCConfigEditor extends PureComponent<Props, State> {
     const secureJsonData = props.options.secureJsonData as GCSecureJsonData;
     const jsonData = props.options.jsonData as GCDataSourceOptions;
     this.state = {
-      apiKey: secureJsonData?.apiKey || "",
+      apiKey: secureJsonData?.apiKey ? secureJsonData.apiKey.replace(/^apikey\s*/, "") : "",
       apiUrl: jsonData?.apiUrl || "",
     };
   }
@@ -32,7 +32,12 @@ export class GCConfigEditor extends PureComponent<Props, State> {
   onApiKeyChange = (e: ChangeEvent<HTMLInputElement>) => {
     const apiKey = e.target.value;
     this.setState({ apiKey });
+  };
+
+  onApiKeyBlur = () => {
     const { onOptionsChange, options } = this.props;
+    const rawKey = this.state.apiKey.trim();
+    const apiKey = rawKey.startsWith("apikey ") ? rawKey : `apikey ${rawKey}`;
     onOptionsChange({ ...options, secureJsonData: { ...options.secureJsonData, apiKey } });
   };
 
@@ -53,13 +58,13 @@ export class GCConfigEditor extends PureComponent<Props, State> {
 
     return (
       <>
-        <Legend>FastEdge API Settings</Legend>
+        <Legend>HTTP</Legend>
         <div className="gf-form-group">
           <FormField
-            label="API URL"
+            label="URL"
             labelWidth={8}
             inputWidth={20}
-            placeholder="https://api.gcore.com"
+            placeholder="API base URL"
             value={apiUrl}
             onChange={this.onApiUrlChange}
             required
@@ -69,26 +74,26 @@ export class GCConfigEditor extends PureComponent<Props, State> {
           <SecretFormField
             isConfigured={!!isConfigured}
             label="API Key"
-            placeholder="Enter your permanent API token"
+            placeholder="Secure field"
             labelWidth={8}
             inputWidth={20}
             value={apiKey}
             onChange={this.onApiKeyChange}
+            onBlur={this.onApiKeyBlur}
             onReset={this.onResetApiKey}
           />
         </div>
-        <Alert severity="info" title="FastEdge GET API Reference">
-          <p>
-            You can find more details about the FastEdge Execution Duration Statistics endpoint here:
-          </p>
-          <a
-            href="https://gcore.com/docs/api-reference/fastedge/stats/execution-duration-statistics"
-            target="_blank"
-            rel="noreferrer"
-          >
-            https://gcore.com/docs/api-reference/fastedge/stats/execution-duration-statistics
-          </a>
-        </Alert>
+        <div className="gf-form-group">
+          <Alert severity={"info"} title="How to create an API token?">
+            <a
+              href="https://gcore.com/docs/account-settings/create-use-or-delete-a-permanent-api-token"
+              target="_blank"
+              rel="noreferrer"
+            >
+              https://gcore.com/docs/account-settings/create-use-or-delete-a-permanent-api-token
+            </a>
+          </Alert>
+        </div>
       </>
     );
   }

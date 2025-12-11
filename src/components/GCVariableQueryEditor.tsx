@@ -7,10 +7,10 @@ export interface GCVariableQueryProps {
 }
 
 export const GCVariableQueryEditor: React.FC<GCVariableQueryProps> = ({ query: rawQuery, onChange }) => {
-  const [step, setStep] = useState<number>(rawQuery.selector || 60);
+  const [step, setStep] = useState<number>(rawQuery.selector ?? 60);
 
   const handleStepChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Number(e.target.value);
+    const value = Number(e.target.value) || 0;
     setStep(value);
     onChange({ ...rawQuery, selector: value }, `${value} seconds`);
   };
