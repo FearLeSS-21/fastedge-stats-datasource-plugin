@@ -1,5 +1,6 @@
 import { GCQuery } from "./types";
 
 export const defaultQuery: Partial<GCQuery> = {
-  step: 60
+  step: 60,
+  metric: "avg",
 };

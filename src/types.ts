@@ -14,12 +14,13 @@ export interface GCSecureJsonData {
 }
 
 export interface GCQuery extends DataQuery {
-  id?: number;              
-  appName?: string;         
+  id?: number;
+  appName?: string;
   from: RFC3339String;
   to: RFC3339String;
   step: number;
   network?: string;
+  metric?: string;
 }
 
 export interface GCAppDuration {

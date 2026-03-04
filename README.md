@@ -28,6 +28,25 @@ It's designed for **developers**, **DevOps teams**, and **network engineers** wh
 ---
 
 
+## Default parameters
+
+The plugin uses the following defaults when they are not set in the datasource config or panel query:
+
+| Parameter | Default | Source |
+|-----------|---------|--------|
+| Query **step** (granularity, seconds) | `60` | Query editor / `defaultQuery` |
+| Query **metric** | `"avg"` | Query editor / `defaultQuery` |
+| API base URL | `https://api.gcore.com` | Datasource config (used when **API URL** is left empty in plugin routes) |
+| Variable query step (selector) | `60` | Variable query editor |
+
+Config comes from the datasource instance settings (API URL, API Key) and from `defaultQuery` merged at panel render time for each target. The backend also applies step=60 and metric=avg when values are missing or invalid.
+
+### Multi-datasource panels
+
+Panels can use multiple targets with different datasource instances (e.g. two FastEdge instances or FastEdge and another plugin). A common failure was **query format mismatch**: if one target had `metric` sent as an object (e.g. `{ "value": "avg", "label": "avg" }`) instead of a string, the backend returned `json: cannot unmarshal object into Go struct field GCQueryModel.metric of type string`. The backend now normalizes query JSON (metric as string or object, step as number or string) so mixed-format panels work. If a panel still fails with both datasources, check browser console and Grafana backend logs for the failing RefID and ensure both targets use valid query shapes; the backend accepts and normalizes legacy or hand-edited dashboard JSON.
+
+---
+
 ## ⚙️ Configuration
 
 ### Add the Data Source

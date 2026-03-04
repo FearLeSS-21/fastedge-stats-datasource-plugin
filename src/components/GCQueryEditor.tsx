@@ -10,6 +10,39 @@ import { DataSource } from "../datasource";
 
 const { FormField } = LegacyForms;
 
+/** Normalize metric to a string (handles SelectableValue-style object from mixed panels/import). */
+function normalizeMetric(metric: GCQuery["metric"]): string {
+  if (metric === undefined || metric === null) return "avg";
+  if (typeof metric === "string") return metric;
+  if (typeof metric === "object" && metric !== null && ("value" in metric || "label" in metric)) {
+    const m = metric as { value?: string; label?: string };
+    if (typeof m.value === "string") return m.value;
+    if (typeof m.label === "string") return m.label;
+  }
+  return "avg";
+}
+
+/** Normalize step to a number (handles string from dashboard JSON). */
+function normalizeStep(step: GCQuery["step"]): number {
+  if (step === undefined || step === null) return 60;
+  if (typeof step === "number" && step > 0) return step;
+  if (typeof step === "string") {
+    const n = parseInt(step, 10);
+    if (!isNaN(n) && n > 0) return n;
+  }
+  return 60;
+}
+
+/** True when we should persist default/normalized query so saved panel has primitives. */
+function needsDefaultPersist(query: GCQuery | undefined): boolean {
+  const q: Partial<GCQuery> = query ?? {};
+  if (q.step === undefined || q.step === null || q.step === 0) return true;
+  if (q.metric === undefined || q.metric === null) return true;
+  if (typeof q.metric === "object") return true;
+  if (typeof q.step === "string") return true;
+  return false;
+}
+
 type Props = QueryEditorProps<DataSource, GCQuery, GCDataSourceOptions>;
 
 interface State {
@@ -27,24 +60,43 @@ export class GCQueryEditor extends PureComponent<Props, State> {
 
   componentDidMount() {
     this.loadApps();
+    this.persistDefaultsIfNeeded();
   }
+
+  componentDidUpdate(prevProps: Props) {
+    if (this.props.query !== prevProps.query) {
+      this.persistDefaultsIfNeeded();
+    }
+  }
+
+  /** Persist default step/metric and normalize metric/step to primitives so saved panel and backend get consistent shape.
+   *  Also trigger a single query run when we first normalize defaults, so a new panel shows data without manual interaction.
+   */
+  persistDefaultsIfNeeded = () => {
+    const { query, onChange, onRunQuery } = this.props;
+    if (!onChange || !needsDefaultPersist(query)) {
+      return;
+    }
+
+    const normalized = {
+      ...query,
+      ...defaultQuery,
+      metric: normalizeMetric(query?.metric),
+      step: normalizeStep(query?.step),
+    };
+
+    onChange(normalized);
+
+    if (onRunQuery) {
+      onRunQuery();
+    }
+  };
 
   async loadApps() {
     this.setState({ loadingApps: true, error: undefined });
 
     try {
-      const url = `${this.props.datasource.url}/fastedge/v1/apps`;
-      let apiKey = this.props.datasource.instanceSettings.secureJsonData?.apiKey ?? "";
-      apiKey = apiKey.startsWith("apikey ") ? apiKey : `apikey ${apiKey}`;
-      const { getBackendSrv } = await import("@grafana/runtime");
-
-      const response = await getBackendSrv().datasourceRequest({
-        method: "GET",
-        url,
-        headers: { Authorization: apiKey },
-      });
-
-      const raw: any = response?.data ?? {};
+      const raw = await this.props.datasource.getResource("fastedge/v1/apps");
       let apps: any[] = [];
 
       if (Array.isArray(raw)) {
@@ -53,9 +105,8 @@ export class GCQueryEditor extends PureComponent<Props, State> {
         apps = raw.apps;
       }
 
-      // Add "All" option at the top
       const appOptions = [
-        { label: "All", value: 0 }, // value 0 represents "All apps"
+        { label: "All", value: 0 },
         ...apps.map((app: any) => ({
           label: app.name ?? `App ${app.id}`,
           value: app.id,
@@ -96,10 +147,27 @@ export class GCQueryEditor extends PureComponent<Props, State> {
     onRunQuery();
   };
 
+  onMetricChange = (option: SelectableValue<string>) => {
+    const { onChange, query, onRunQuery } = this.props;
+    onChange({ ...query, metric: option.value ?? "avg" });
+    onRunQuery();
+  };
+
   render() {
     const query: GCQuery = defaults(this.props.query, defaultQuery);
-    const { id = 0, step = 60, network = "" } = query;
+    const { id = 0, network = "" } = query;
+    const step = normalizeStep(query.step);
+    const metric = normalizeMetric(query.metric);
     const { appOptions, loadingApps, error } = this.state;
+
+    const metricOptions: Array<SelectableValue<string>> = [
+      { label: "avg", value: "avg" },
+      { label: "min", value: "min" },
+      { label: "max", value: "max" },
+      { label: "median", value: "median" },
+      { label: "perc75", value: "perc75" },
+      { label: "perc90", value: "perc90" },
+    ];
 
     const inputStyle: React.CSSProperties = {
       width: "100%",
@@ -111,6 +179,7 @@ export class GCQueryEditor extends PureComponent<Props, State> {
     };
 
     const selectedApp = appOptions.find((opt) => opt.value === id) || appOptions[0];
+    const selectedMetric = metricOptions.find((opt) => opt.value === metric) || metricOptions[0];
 
     return (
       <div
@@ -141,6 +210,21 @@ export class GCQueryEditor extends PureComponent<Props, State> {
           }
         />
         {error && <div style={{ color: "red", fontSize: "12px", marginTop: "-10px" }}>{error}</div>}
+
+        <FormField
+          label="Metric"
+          labelWidth={12}
+          inputEl={
+            <Select
+              options={metricOptions}
+              value={selectedMetric}
+              onChange={this.onMetricChange}
+              placeholder="Select a Metric"
+              width={40}
+            />
+          }
+        />
+
         <FormField
           label="Step"
           labelWidth={12}

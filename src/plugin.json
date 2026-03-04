@@ -4,14 +4,22 @@
   "name": "Gcore FastEdge",
   "id": "gcorelabs-fastedge-stats-datasource",
   "metrics": true,
+  "backend": true,
+  "alerting": true,
+  "executable": "gcore-fastedge-stats-datasource",
   "info": {
-    "description": "Datasource for GCore FastEdge",
+    "description": "Datasource for Gcore FastEdge Statistics",
     "author": {
-      "name": "GCore",
+      "name": "Gcore",
       "url": "https://gcore.com/",
       "email": "support@gcore.com"
     },
-    "keywords": ["fastedge", "execution", "duration", "statistics"],
+    "keywords": [
+      "fastedge",
+      "execution",
+      "duration",
+      "statistics"
+    ],
     "logos": {
       "small": "img/logo-small.svg",
       "large": "img/logo-large-black.png"
@@ -38,28 +46,40 @@
       "path": "fastedge/v1/apps",
       "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/fastedge/v1/apps",
       "headers": [
-        { "name": "Authorization", "content": "{{ .SecureJsonData.apiKey }}" }
+        {
+          "name": "Authorization",
+          "content": "{{ .SecureJsonData.apiKey }}"
+        }
       ]
     },
     {
       "path": "fastedge/v1/stats/app_duration",
       "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/fastedge/v1/stats/app_duration",
       "headers": [
-        { "name": "Authorization", "content": "{{ .SecureJsonData.apiKey }}" }
+        {
+          "name": "Authorization",
+          "content": "{{ .SecureJsonData.apiKey }}"
+        }
       ]
     },
     {
       "path": "users/me",
       "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/users/me",
       "headers": [
-        { "name": "Authorization", "content": "{{ .SecureJsonData.apiKey }}" }
+        {
+          "name": "Authorization",
+          "content": "{{ .SecureJsonData.apiKey }}"
+        }
       ]
     },
     {
       "path": "iam/users/me",
       "url": "https://{{if .JsonData.apiUrl}}{{ .JsonData.apiUrl }}{{else}}api.gcore.com{{end}}/iam/users/me",
       "headers": [
-        { "name": "Authorization", "content": "{{ .SecureJsonData.apiKey }}" }
+        {
+          "name": "Authorization",
+          "content": "{{ .SecureJsonData.apiKey }}"
+        }
       ]
     }
   ]
